@@ -1,9 +1,5 @@
 package fi.dy.masa.minihud;
 
-import java.io.File;
-import java.util.List;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import com.google.common.collect.ImmutableList;
 import com.mumfrey.liteloader.Configurable;
 import com.mumfrey.liteloader.LiteMod;
@@ -21,8 +17,14 @@ import fi.dy.masa.minihud.event.RenderHandler;
 import fi.dy.masa.minihud.event.WorldLoadListener;
 import fi.dy.masa.minihud.hotkeys.KeyCallbacks;
 import fi.dy.masa.minihud.util.DataStorage;
+import fi.dy.masa.minihud.util.PubSubMessenger;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.PacketBuffer;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import java.io.File;
+import java.util.List;
 
 public class LiteModMiniHud implements LiteMod, Configurable, PluginChannelListener, Tickable
 {
@@ -30,7 +32,7 @@ public class LiteModMiniHud implements LiteMod, Configurable, PluginChannelListe
 
     public static final String CHANNEL_CARPET_CLIENT = "CarpetClient";
 
-    private final ImmutableList<String> pluginChannels = ImmutableList.of(CHANNEL_CARPET_CLIENT);
+    private final ImmutableList<String> pluginChannels = ImmutableList.of(CHANNEL_CARPET_CLIENT, PubSubMessenger.CHANNEL_NAME);
 
     public LiteModMiniHud()
     {
@@ -91,6 +93,10 @@ public class LiteModMiniHud implements LiteMod, Configurable, PluginChannelListe
         if (CHANNEL_CARPET_CLIENT.equals(channel))
         {
             DataStorage.getInstance().updateStructureDataFromServer(data);
+        }
+        else if (PubSubMessenger.CHANNEL_NAME.equals(channel))
+        {
+            DataStorage.getInstance().updatePubSubDataFromServer(data);
         }
     }
 

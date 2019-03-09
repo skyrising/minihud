@@ -1,7 +1,5 @@
 package fi.dy.masa.minihud.event;
 
-import java.io.File;
-import javax.annotation.Nullable;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import fi.dy.masa.malilib.interfaces.IWorldLoadListener;
@@ -18,6 +16,9 @@ import fi.dy.masa.minihud.renderer.shapes.ShapeManager;
 import fi.dy.masa.minihud.util.DataStorage;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.WorldClient;
+
+import javax.annotation.Nullable;
+import java.io.File;
 
 public class WorldLoadListener implements IWorldLoadListener
 {

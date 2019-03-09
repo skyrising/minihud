@@ -1,32 +1,11 @@
 package fi.dy.masa.minihud.util;
 
-import java.io.File;
-import java.io.IOException;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import javax.annotation.Nullable;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.gson.JsonObject;
-import fi.dy.masa.malilib.util.Constants;
-import fi.dy.masa.malilib.util.FileUtils;
-import fi.dy.masa.malilib.util.InfoUtils;
-import fi.dy.masa.malilib.util.JsonUtils;
-import fi.dy.masa.malilib.util.StringUtils;
-import fi.dy.masa.malilib.util.WorldUtils;
+import fi.dy.masa.malilib.util.*;
 import fi.dy.masa.minihud.LiteModMiniHud;
 import fi.dy.masa.minihud.Reference;
-import fi.dy.masa.minihud.mixin.IMixinChunkGeneratorEnd;
-import fi.dy.masa.minihud.mixin.IMixinChunkGeneratorFlat;
-import fi.dy.masa.minihud.mixin.IMixinChunkGeneratorHell;
-import fi.dy.masa.minihud.mixin.IMixinChunkGeneratorOverworld;
-import fi.dy.masa.minihud.mixin.IMixinChunkProviderServer;
-import fi.dy.masa.minihud.mixin.IMixinMapGenStructure;
+import fi.dy.masa.minihud.mixin.*;
 import fi.dy.masa.minihud.renderer.OverlayRendererSpawnableColumnHeights;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import net.minecraft.client.Minecraft;
@@ -46,19 +25,15 @@ import net.minecraft.util.text.TextFormatting;
 import net.minecraft.world.World;
 import net.minecraft.world.WorldServer;
 import net.minecraft.world.chunk.Chunk;
-import net.minecraft.world.gen.ChunkGeneratorEnd;
-import net.minecraft.world.gen.ChunkGeneratorFlat;
-import net.minecraft.world.gen.ChunkGeneratorHell;
-import net.minecraft.world.gen.ChunkGeneratorOverworld;
-import net.minecraft.world.gen.IChunkGenerator;
-import net.minecraft.world.gen.structure.MapGenScatteredFeature;
-import net.minecraft.world.gen.structure.MapGenStronghold;
-import net.minecraft.world.gen.structure.MapGenStructure;
-import net.minecraft.world.gen.structure.MapGenStructureIO;
-import net.minecraft.world.gen.structure.MapGenVillage;
-import net.minecraft.world.gen.structure.StructureComponent;
-import net.minecraft.world.gen.structure.StructureOceanMonument;
-import net.minecraft.world.gen.structure.StructureStart;
+import net.minecraft.world.gen.*;
+import net.minecraft.world.gen.structure.*;
+
+import javax.annotation.Nullable;
+import java.io.File;
+import java.io.IOException;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class DataStorage
 {
@@ -89,6 +64,12 @@ public class DataStorage
     private final Map<ChunkPos, Integer> spawnableSubChunks = new HashMap<>();
     private final ArrayListMultimap<StructureType, StructureData> structures = ArrayListMultimap.create();
     private final Minecraft mc = Minecraft.getMinecraft();
+    private final Map<String, Object> pubSubNodes = new HashMap<>();
+    private final String[] autoSubscribedNodes = {
+            "minecraft.performance.tps",
+            "minecraft.performance.mspt",
+            "minecraft.overworld.chunk_loading.dropped_chunks.hash_size"
+    };
 
     public static DataStorage getInstance()
     {
@@ -108,6 +89,8 @@ public class DataStorage
         this.lastStructureUpdatePos = null;
         this.structures.clear();
         this.worldSeed = 0;
+
+        PubSubMessenger.subscribe(autoSubscribedNodes);
     }
 
     public void setWorldSeed(long seed)
@@ -809,6 +792,46 @@ public class DataStorage
         else
         {
             this.distanceReferencePoint = Vec3d.ZERO;
+        }
+    }
+
+    public void updatePubSubDataFromServer(PacketBuffer buf) {
+        PacketBuffer data = PacketSplitter.receive(PubSubMessenger.CHANNEL_NAME, buf);
+        if (data == null) return;
+        int id = data.readVarInt();
+        switch (id) {
+            case PubSubMessenger.PACKET_S2C_UPDATE: {
+                try {
+                    Map<String, Object> nodes = PubSubMessenger.decodeUpdate(data);
+                    pubSubNodes.putAll(nodes);
+                    refreshPubSubNodes();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+        this.carpetServer = true;
+    }
+
+    private <T> T getPubSubNode(String node, Class<T> type) {
+        Object obj = pubSubNodes.get(node);
+        if (obj == null || !type.isAssignableFrom(obj.getClass())) return null;
+        return (T) obj;
+    }
+
+    private void refreshPubSubNodes() {
+        Number tps = getPubSubNode("minecraft.performance.tps", Number.class);
+        if (tps != null) {
+            this.serverTPS = tps.doubleValue();
+        }
+        Number mspt = getPubSubNode("minecraft.performance.mspt", Number.class);
+        if (mspt != null) this.serverMSPT = mspt.doubleValue();
+        if (tps != null && mspt != null) {
+            this.serverTPSValid = true;
+        }
+        Number droppedChunksHashSize = getPubSubNode("minecraft.overworld.chunk_loading.dropped_chunks.hash_size", Number.class);
+        if (droppedChunksHashSize != null) {
+            this.droppedChunksHashSize = droppedChunksHashSize.intValue();
         }
     }
 }
